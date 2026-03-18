@@ -1,0 +1,25 @@
+[project]
+name = "pcot"
+version = "0.1.0"
+description = "PCoT final repo"
+readme = "README.md"
+requires-python = "==3.9.20"
+dependencies = [
+    "anthropic>=0.42.0",
+    "chardet>=5.2.0",
+    "google-cloud>=0.34.0",
+    "google>=3.0.0",
+    "jupyter>=1.1.1",
+    "openai==1.58.1",
+    "pandas==2.2.3",
+    "python-dotenv==1.0.1",
+    "pyyaml==6.0.2",
+    "scikit-learn>=1.6.0",
+    "tqdm==4.67.1",
+    "trafilatura>=2.0.0",
+    "google-generativeai>=0.8.3",
+    "mlxtend>=0.23.3",
+    "shap>=0.46.0",
+    "seaborn>=0.13.2",
+    "nltk>=3.9.1",
+]
