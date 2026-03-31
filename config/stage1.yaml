@@ -1,0 +1,44 @@
+# PersuContraGraph 训练配置 - 第一阶段
+
+# 数据配置
+data:
+  data_dir: "pcot_persu_data"
+  train_files:
+    - "gpt-5-mini-2025-08-07_CoAID_train.csv"
+    - "gpt-5-mini-2025-08-07_ECTF_train.csv"
+  val_files:
+    - "gpt-5-mini-2025-08-07_CoAID_validation.csv"
+    - "gpt-5-mini-2025-08-07_ECTF_validation.csv"
+  test_files:
+    - "gpt-5-mini-2025-08-07_CoAID_test.csv"
+    - "gpt-5-mini-2025-08-07_ECTF_test.csv"
+    - "gpt-5-mini-2025-08-07_EUDisinfo_test.csv"
+    - "gpt-5-mini-2025-08-07_ISOTFakeNews_test.csv"
+    - "gpt-5-mini-2025-08-07_MultiDis_test.csv"
+  max_length: 512
+  batch_size: 16
+
+# 模型配置
+model:
+  encoder_name: "/home/cyc/AI4Env-luoshang/TRACER-reproduce/model_weights/roberta-large"
+  pooling: "mean"
+  freeze_encoder: false
+  persu_hidden: 256
+  cl_hidden: 256
+  cl_output: 128
+  cls_hidden: 256
+  num_classes: 2
+  dropout: 0.3
+
+# 训练配置
+train:
+  stage: "pretrain_persu"  # pretrain_persu, pretrain_cl, finetune_cls, full
+  epochs: 10
+  learning_rate: 0.0001
+  weight_decay: 0.00001
+  patience: 3
+  device: "cuda:2"
+
+# 保存配置
+save:
+  save_path: "models/persucontra_stage1.pth"
