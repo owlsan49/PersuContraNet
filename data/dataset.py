@@ -11,7 +11,6 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from typing import Dict, List, Optional
 from pathlib import Path
-from sklearn.model_selection import train_test_split
 
 # 6维特征名称
 PERSUASION_FEATURES = [
@@ -22,66 +21,6 @@ PERSUASION_FEATURES = [
     'Call',
     'Manipulative_wording'
 ]
-
-
-class BaseDatasetLoader:
-    """数据集加载基类"""
-
-    name: str = "base"
-
-    def __init__(self, data_dir: str):
-        self.data_dir = Path(data_dir)
-
-    def load(self) -> pd.DataFrame:
-        raise NotImplementedError
-
-    def parse_label(self, label: str) -> int:
-        return 1 if label.strip().lower() == 'real' else 0
-
-
-class ECTFLoader(BaseDatasetLoader):
-    name = "ECTF"
-    def load(self) -> pd.DataFrame:
-        return pd.read_csv(self.data_dir / "deepseek-v3.2_ECTF.csv")
-
-
-class CoAIDLoader(BaseDatasetLoader):
-    name = "CoAID"
-    def load(self) -> pd.DataFrame:
-        return pd.read_csv(self.data_dir / "deepseek-v3.2_CoAID.csv")
-
-
-class ISOTFakeNewsLoader(BaseDatasetLoader):
-    name = "ISOTFakeNews"
-    def load(self) -> pd.DataFrame:
-        return pd.read_csv(self.data_dir / "deepseek-v3.2_ISOTFakeNews.csv")
-
-
-class MultiDisLoader(BaseDatasetLoader):
-    name = "MultiDis"
-    def load(self) -> pd.DataFrame:
-        return pd.read_csv(self.data_dir / "deepseek-v3.2_MultiDis.csv")
-
-
-class EUDisinfoLoader(BaseDatasetLoader):
-    name = "EUDisinfo"
-    def load(self) -> pd.DataFrame:
-        return pd.read_csv(self.data_dir / "deepseek-v3.2_EUDisinfo.csv")
-
-
-# 数据集加载器注册表
-DATASET_REGISTRY: Dict[str, BaseDatasetLoader] = {
-    'ECTF': ECTFLoader,
-    'CoAID': CoAIDLoader,
-    'ISOTFakeNews': ISOTFakeNewsLoader,
-    'MultiDis': MultiDisLoader,
-    'EUDisinfo': EUDisinfoLoader,
-}
-
-
-def register_dataset(name: str, loader_class: type):
-    """注册新的数据集加载器"""
-    DATASET_REGISTRY[name] = loader_class
 
 
 class PersuasionFeatureParser:
@@ -133,65 +72,84 @@ class PersuasionDataset(Dataset):
         return self.features[idx], self.labels[idx]
 
 
-def load_datasets(data_dir: str, dataset_names: Optional[List[str]] = None) -> pd.DataFrame:
-    """加载数据集"""
-    if dataset_names is None:
-        dataset_names = list(DATASET_REGISTRY.keys())
-
-    dfs = []
-    for name in dataset_names:
-        if name in DATASET_REGISTRY:
-            loader = DATASET_REGISTRY[name](data_dir)
-            df = loader.load()
-            df['source'] = name
-            dfs.append(df)
-            print(f"Loaded {name}: {len(df)} samples")
-
-    return pd.concat(dfs, ignore_index=True) if dfs else None
-
-
-def prepare_data(data_dir: str, dataset_names: Optional[List[str]] = None,
-                 val_size: float = 0.15, test_size: float = 0.15, random_seed: int = 42):
+def prepare_data_from_files(train_files: List[str] = None, val_files: List[str] = None,
+                            test_files: List[str] = None,
+                            data_dir: str = "pcot_persu_data",
+                            model_prefix: str = None):
     """
-    准备数据并划分数据集
+    从指定文件加载数据
 
     Args:
-        data_dir: 数据目录
-        dataset_names: 要加载的数据集名称
-        val_size: 验证集比例
-        test_size: 测试集比例
-        random_seed: 随机种子
+        train_files: 训练集文件路径列表 (如 ["gpt-5-mini-2025-08-07_ECTF_train.csv"])
+        val_files: 验证集文件路径列表
+        test_files: 测试集文件列表
+        data_dir: 数据根目录
+        model_prefix: 模型前缀，用于构建完整文件名
 
     Returns:
         train_loader, val_loader, test_loader
     """
-    # 加载数据
-    df = load_datasets(data_dir, dataset_names)
+    parser = PersuasionFeatureParser()
+    dfs = []
+
+    # 加载训练集
+    if train_files:
+        for train_file in train_files:
+            train_path = os.path.join(data_dir, train_file)
+            if os.path.exists(train_path):
+                df_train = pd.read_csv(train_path)
+                df_train['split'] = 'train'
+                dfs.append(df_train)
+                print(f"Loaded train: {len(df_train)} samples from {train_file}")
+
+    # 加载验证集
+    if val_files:
+        for val_file in val_files:
+            val_path = os.path.join(data_dir, val_file)
+            if os.path.exists(val_path):
+                df_val = pd.read_csv(val_path)
+                df_val['split'] = 'val'
+                dfs.append(df_val)
+                print(f"Loaded val: {len(df_val)} samples from {val_file}")
+
+    # 加载测试集
+    if test_files:
+        for test_file in test_files:
+            test_path = os.path.join(data_dir, test_file)
+            if os.path.exists(test_path):
+                df_test = pd.read_csv(test_path)
+                df_test['split'] = 'test'
+                dfs.append(df_test)
+                print(f"Loaded test: {len(df_test)} samples from {test_file}")
+
+    if not dfs:
+        raise ValueError("No data loaded!")
+
+    # 合并数据
+    df = pd.concat(dfs, ignore_index=True)
 
     # 解析特征
-    parser = PersuasionFeatureParser()
     features = np.array([parser.parse(row['generated_pred'])
                          for _, row in df.iterrows()])
 
-    # 解析标签: real=1, fake=0
+    # 解析标签
     labels = np.array([1 if l.strip().lower() == 'real' else 0
                       for l in df['label']], dtype=np.int64)
 
     print(f"Total: {len(features)} samples, Features shape: {features.shape}")
     print(f"Label distribution: Real={sum(labels)}, Fake={len(labels)-sum(labels)}")
 
-    # 划分数据集 (train:val:test = 7:1.5:1.5)
-    X_train, X_temp, y_train, y_temp = train_test_split(
-        features, labels, test_size=(val_size + test_size),
-        random_state=random_seed, stratify=labels
-    )
+    # 按split划分
+    train_mask = df['split'] == 'train'
+    val_mask = df['split'] == 'val'
+    test_mask = df['split'] == 'test'
 
-    # 计算验证集和测试集的比例
-    val_ratio = val_size / (val_size + test_size)
-    X_val, X_test, y_val, y_test = train_test_split(
-        X_temp, y_temp, test_size=(1-val_ratio),
-        random_state=random_seed, stratify=y_temp
-    )
+    X_train = features[train_mask]
+    y_train = labels[train_mask]
+    X_val = features[val_mask]
+    y_val = labels[val_mask]
+    X_test = features[test_mask]
+    y_test = labels[test_mask]
 
     # 创建数据集
     train_dataset = PersuasionDataset(X_train, y_train)

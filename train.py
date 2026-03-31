@@ -15,9 +15,9 @@ import numpy as np
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.dataset import prepare_data, DATASET_REGISTRY, register_dataset
-from models.mlp import build_model, MODEL_REGISTRY
-from config.config import DATA_DIR, MODEL_CONFIG, TRAIN_CONFIG, SPLIT_CONFIG
+from data.dataset import prepare_data_from_files
+from models.mlp import build_model
+from config.config import DATA_DIR, MODEL_CONFIG, TRAIN_CONFIG
 
 
 def train_epoch(model: nn.Module, dataloader: DataLoader,
@@ -120,12 +120,14 @@ def train(args):
 
     # 准备数据
     print("\n=== Loading Data ===")
-    train_loader, val_loader, test_loader = prepare_data(
-        data_dir=args.data_dir or DATA_DIR,
-        dataset_names=args.datasets,
-        val_size=SPLIT_CONFIG['val_size'],
-        test_size=SPLIT_CONFIG['test_size'],
-        random_seed=SPLIT_CONFIG['random_seed']
+    train_files = args.train_files.split(',') if args.train_files else []
+    val_files = args.val_files.split(',') if args.val_files else []
+    test_files = args.test_files.split(',') if args.test_files else []
+    train_loader, val_loader, test_loader = prepare_data_from_files(
+        train_files=train_files,
+        val_files=val_files,
+        test_files=test_files,
+        data_dir=args.data_dir
     )
 
     # 构建模型
@@ -204,7 +206,11 @@ def train(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train Persuasion Detection Model")
     parser.add_argument("--data_dir", type=str, default=DATA_DIR, help="Data directory")
-    parser.add_argument("--datasets", nargs="+", default=None, help="Datasets to load")
+    parser.add_argument("--train_files", type=str, required=True,
+                        help="Training data files (comma separated)")
+    parser.add_argument("--val_files", type=str, required=True,
+                        help="Validation data files (comma separated)")
+    parser.add_argument("--test_files", type=str, required=True, help="Test data files (comma separated)")
     parser.add_argument("--save_path", type=str, default="models/persuasion_mlp.pth", help="Save path")
     args = parser.parse_args()
 
